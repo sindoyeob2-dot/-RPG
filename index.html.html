@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>공부 RPG</title>
+<style>
+*{box-sizing:border-box} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;background:#10131c;color:#fff}
+.app{max-width:520px;margin:auto;min-height:100vh;padding:24px 18px 35px}
+h1{font-size:30px;margin:0 0 4px}.sub{color:#9da5b5;margin-bottom:20px}
+.card{background:#1b2030;border:1px solid #2b3245;border-radius:20px;padding:18px;margin:12px 0}
+.hero{display:flex;gap:16px;align-items:center}.avatar{font-size:64px;background:#252c40;border-radius:18px;padding:8px}
+.level{font-size:22px;font-weight:800}.bar{height:12px;background:#30374b;border-radius:99px;overflow:hidden;margin-top:9px}.fill{height:100%;background:#7c6cff;width:0%;transition:.3s}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat{background:#242a3b;border-radius:15px;padding:13px}.num{font-size:25px;font-weight:800;margin-top:3px}
+.timer{text-align:center}.time{font-size:62px;font-weight:800;letter-spacing:2px;margin:10px 0}
+button{border:0;border-radius:13px;padding:13px 16px;font-size:16px;font-weight:700;cursor:pointer;background:#7567ff;color:white;margin:4px}
+button.secondary{background:#30374b}.tasks{display:flex;gap:8px}.tasks input{flex:1;background:#111521;border:1px solid #394157;color:white;border-radius:12px;padding:12px;font-size:15px}
+li{padding:10px 0;border-bottom:1px solid #30374b;list-style:none}ul{padding:0;margin:5px 0}
+.shop{display:grid;grid-template-columns:1fr 1fr;gap:10px}.item{background:#242a3b;border-radius:14px;padding:13px}.item button{font-size:13px;padding:9px}
+.small{font-size:13px;color:#9da5b5}
+</style>
+</head>
+<body><main class="app">
+<h1>⚔️ 공부 RPG</h1><div class="sub">공부하면 네 캐릭터가 강해진다.</div>
+
+<section class="card hero">
+<div class="avatar" id="avatar">🦝</div><div style="flex:1">
+<div class="level" id="level">Lv. 1 견습생</div>
+<div class="small"><span id="xp">0</span> / 100 EXP</div><div class="bar"><div class="fill" id="fill"></div></div>
+</div></section>
+
+<section class="stats">
+<div class="stat">💰 코인<div class="num" id="coins">0</div></div>
+<div class="stat">🔥 연속 공부<div class="num" id="streak">0일</div></div>
+</section>
+
+<section class="card timer">
+<div class="small">집중 타이머</div>
+<div class="time" id="time">25:00</div>
+<div style="margin-bottom:12px">
+  <button class="secondary" onclick="setDuration(10)">⚡ 10초 테스트</button>
+  <button class="secondary" onclick="setDuration(60)">🧪 1분 테스트</button>
+  <button class="secondary" onclick="setDuration(1500)">🎯 25분</button>
+</div>
+<button id="startBtn" onclick="start()">▶ 시작</button>
+<button class="secondary" onclick="pause()">⏸ 일시정지</button>
+<button class="secondary" onclick="resetTimer()">↩ 초기화</button>
+<p class="small" id="status">⏸ 대기 중 · 완료하면 EXP +100 / 코인 +50</p>
+<p class="small" id="browserHelp" style="display:none">⚠️ 이 화면에서는 버튼 실행이 제한될 수 있어요. 오른쪽 ⋯ → Safari에서 열어주세요.</p>
+</section>
+
+<section class="card">
+<h2>📚 오늘 할 일</h2>
+<div class="tasks"><input id="taskInput" placeholder="예: 수학 20문제"><button onclick="addTask()">추가</button></div>
+<ul id="tasks"></ul>
+</section>
+
+<section class="card">
+<h2>🛒 코인 상점</h2>
+<div class="shop">
+<div class="item">🐼 판다 펫<br><span class="small">100 코인</span><br><button onclick="buy(100,'🐼')">구매</button></div>
+<div class="item">🦊 여우 펫<br><span class="small">200 코인</span><br><button onclick="buy(200,'🦊')">구매</button></div>
+<div class="item">🐺 늑대 펫<br><span class="small">300 코인</span><br><button onclick="buy(300,'🐺')">구매</button></div>
+<div class="item">🐲 드래곤<br><span class="small">500 코인</span><br><button onclick="buy(500,'🐲')">구매</button></div>
+</div>
+</section>
+</main>
+<script>
+let data=JSON.parse(localStorage.getItem('studyRPG')||'null')||{xp:0,coins:0,streak:0,avatar:'🦝',tasks:[]};
+let duration=1500, seconds=1500, timer=null, endAt=null;
+const $=id=>document.getElementById(id);
+
+function save(){localStorage.setItem('studyRPG',JSON.stringify(data));render()}
+function render(){
+ let lv=Math.floor(data.xp/100)+1, cur=data.xp%100;
+ $('level').textContent=`Lv. ${lv} ${lv<5?'견습생':lv<10?'학습 기사':lv<20?'공부 용사':'전설의 수험생'}`;
+ $('xp').textContent=cur;$('fill').style.width=cur+'%';$('coins').textContent=data.coins;$('streak').textContent=data.streak+'일';$('avatar').textContent=data.avatar;
+ $('tasks').innerHTML=data.tasks.map((x,i)=>`<li>${x} <button class="secondary" onclick="doneTask(${i})">완료</button></li>`).join('');
+}
+
+function setDuration(sec){
+  pause();
+  duration=sec;
+  seconds=sec;
+  showTime();
+}
+
+function start(){
+  if(timer !== null) return;
+  endAt=Date.now()+seconds*1000;
+  timer=setInterval(tick,200);
+  tick();
+}
+
+function tick(){
+  seconds=Math.max(0,Math.ceil((endAt-Date.now())/1000));
+  showTime();
+  if(seconds<=0){
+    clearInterval(timer);
+    timer=null;
+    endAt=null;
+    data.xp+=100;
+    data.coins+=50;
+    data.streak++;
+    save();
+    alert('🎉 집중 완료! EXP +100 / 코인 +50');
+    seconds=duration;
+    showTime();
+  }
+}
+
+function pause(){
+  if(timer!==null){
+    seconds=Math.max(0,Math.ceil((endAt-Date.now())/1000));
+    clearInterval(timer);
+    timer=null;
+    endAt=null;
+    showTime();
+  }
+}
+
+function resetTimer(){
+  pause();
+  seconds=duration;
+  showTime();
+}
+
+function showTime(){
+  let m=Math.floor(seconds/60),s=seconds%60;
+  $('time').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  $('status').textContent=timer!==null?'🔥 집중 중!':'⏸ 대기 중 · 완료하면 EXP +100 / 코인 +50';
+}
+
+function addTask(){
+  let v=$('taskInput').value.trim();
+  if(!v)return;
+  data.tasks.push(v);
+  $('taskInput').value='';
+  save()
+}
+function doneTask(i){data.tasks.splice(i,1);data.xp+=20;data.coins+=10;save()}
+function buy(cost,item){
+  if(data.coins<cost){alert('코인이 부족해!');return}
+  data.coins-=cost;data.avatar=item;save();alert(item+' 장착 완료!')
+}
+
+render();
+showTime();
+
+/* 일부 파일 미리보기 화면은 JavaScript 버튼 실행을 막을 수 있음 */
+if(location.protocol==='file:' || location.protocol==='http:' || location.protocol==='https:'){
+  // 정상적인 브라우저에서 실행되는 경우
+} else {
+  $('browserHelp').style.display='block';
+}
+</script>
+</body></html>
